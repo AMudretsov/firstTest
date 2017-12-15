@@ -1,4 +1,7 @@
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 
 /**
  * Created by AMudretsov on 14.12.2017.
@@ -16,9 +19,6 @@ public class WordGrouping {
     /* Исходная строка */
     public final String inputString;
 
-    /* результирующая структура отсортированных по первой букве массивов слов */
-    private TreeMap<Character,List<String>> container=new TreeMap<>();
-
     /**
      * Конструктор класса
      * @param inputString - строка для разбора
@@ -31,72 +31,66 @@ public class WordGrouping {
     }
 
     /**
-     * Процедура разбора строки
+     * Процедура разбора строки в Java 8
      */
-    public void parsing() {
+    public List parsing8() {
+        return  Arrays.stream(this.inputString.split(" "))
+            // производим группировку по первой букве
+            .collect(Collectors.groupingBy(s -> s.charAt(0), TreeMap<Character, List<String>>::new, Collectors.mapping(Function.identity(), Collectors.toList())))
+                    // убираем группы из одного слова
+            .entrySet().stream().filter(entry -> entry.getValue().size() > 1)
+                    // сортируем по убывания числа букв в слове, а затем по алфавиту
+            .map(entry -> {
+                entry.setValue(entry.getValue()
+                     .stream()
+                     .sorted((s1, s2) -> s1.length() == s2.length() ? s1.compareTo(s2) : s2.length() - s1.length())
+                     .collect(Collectors.toList())
+                );
+                return entry;
+            })
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Процедура разбора строки в Java 7
+     */
+    public List parsing7() {
         // разбиваем исходную строку на слова
         String [] words = this.inputString.split(" ");
         // размер для заказа внутренних массивов
         int count=words.length;
-        System.out.println("detect " + count + " words");
 
-        // основной цикл перебора слов
+        // результирующая структура отсортированных по первой букве слов массивов
+        Map<Character,List<String>> map=new TreeMap<>();
+        // производим группировку по первой букве
         for(String word : words){
             List list;
             Character ch = word.charAt(0);
 
-            if(!this.container.containsKey(ch)){
+            if(!map.containsKey(ch)){
                 // буква встретилась первый раз, заказываем для нее массив
                 list=new ArrayList(count);
-                this.container.put(ch,list);
+                map.put(ch,list);
             } else {
                 // очередное слова с буквой 'ch'
-                list=this.container.get(ch);
+                list=map.get(ch);
                 // уменьшаем размер следующего массива
                 count--;
             }
             list.add(word);
         }
 
-        // сортируем полученные массивы
-        for(List<String> list :this.container.values()) {
-            Collections.sort(list, new Comparator<String>() {
+        List list=new ArrayList<>(map.size());
+        for(Map.Entry<Character,List<String>> entry : map.entrySet()) {
+            if (entry.getValue().size() == 1) continue;
+            Collections.sort(entry.getValue(), new Comparator<String>() {
                 public int compare(String s1, String s2) {
                     return s1.length() == s2.length() ? s1.compareTo(s2) : s2.length() - s1.length();
                 }
             });
+            list.add(entry);
         }
-    }
-
-    @Override
-    public String toString(){
-        StringBuilder sb=new StringBuilder(1024);
-        sb.append('[');
-
-        int idx=0;  // для отсечения последней ','
-        // перебор 'Map' через 'Set'
-        Set<Map.Entry <Character,List<String>>>entrySet=this.container.entrySet();
-        for(Map.Entry <Character,List<String>> entry: entrySet) {
-            //получить ключ
-            Character ch = entry.getKey();
-            //получить значение
-            List <String> list = entry.getValue();
-            sb.append(ch).append('=').append('[');
-
-            // можно отсечь последнюю ',' если перебор через 'Iterator'
-            Iterator iter = list.iterator();
-            for (;;) {
-                sb.append(iter.next());
-                if (!iter.hasNext()) break;
-                sb.append(',');
-            }
-            sb.append(']');
-            if (++idx!=entrySet.size())
-                sb.append(',');
-        }
-
-        sb.append(']');
-        return sb.toString();
+        return list;
     }
 
     public static void main(String [] a) {
@@ -116,7 +110,16 @@ public class WordGrouping {
         System.out.println(a[0]);
 
         WordGrouping wg=new WordGrouping(a[0]);
-        wg.parsing();
-        System.out.println(wg);
+        long timeStream=System.currentTimeMillis();
+        List listStream=wg.parsing8();
+        timeStream=System.currentTimeMillis()-timeStream;
+        System.out.println(timeStream+" : "+listStream);
+
+        long timeforEach=System.currentTimeMillis();
+        List listforEach=wg.parsing7();
+        timeforEach=System.currentTimeMillis()-timeforEach;
+        System.out.println(timeforEach+" : "+listforEach);
+
+        System.out.println((timeforEach < timeStream)+" : " + wg.parsing8().equals(wg.parsing7()));
     }
 }
